@@ -1,0 +1,135 @@
+# IELTS Speaking Coach v0.5
+
+文字版 IELTS Speaking 练习应用。
+
+当前版本已经完成 Practice Mode 的文字对话闭环：选择 Part、选择 Topic、和考官多轮对话、结束后生成练习评价。Mock Exam 页面仍保留为后续完整考试流程入口。
+
+## 当前功能
+
+1. 首页入口：Practice Mode / Mock Exam / Records
+2. Practice Mode 支持 Part 1 / Part 2 / Part 3
+3. Practice Session 持久化：part、topic、status、started_at、finished_at、feedback_json
+4. 每轮练习保存 examiner question 和 candidate answer
+5. DeepSeek / OpenAI-compatible LLM 生成追问和评价
+6. LLM 缺失或调用失败时自动 fallback，不让接口崩溃
+7. Mock Exam 旧接口保留可用
+
+## 技术栈
+
+后端：
+
+- FastAPI
+- SQLAlchemy
+- SQLite
+- Pydantic
+
+前端：
+
+- React 18
+- Vite
+- 原生 CSS
+
+## 环境准备
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+前端依赖：
+
+```powershell
+cd frontend
+npm install
+```
+
+## 模型配置
+
+复制 `.env.example` 为 `.env`：
+
+```powershell
+Copy-Item .env.example .env
+```
+
+填写 DeepSeek 配置：
+
+```text
+LLM_PROVIDER=deepseek
+DEEPSEEK_API_KEY=your_deepseek_api_key_here
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-v4-flash
+```
+
+`.env` 不要提交到 Git。
+
+## 启动
+
+后端：
+
+```powershell
+cd C:\Users\wlz\Desktop\ielts-speaking-coach-v0.1
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
+```
+
+前端：
+
+```powershell
+cd C:\Users\wlz\Desktop\ielts-speaking-coach-v0.1\frontend
+npm run dev -- --host 127.0.0.1
+```
+
+访问：
+
+```text
+http://127.0.0.1:5173
+```
+
+后端健康检查：
+
+```text
+http://127.0.0.1:8000/health
+```
+
+## 主要接口
+
+```text
+GET  /health
+GET  /questions
+
+POST /practice/sessions
+POST /practice/sessions/{session_id}/answer
+POST /practice/sessions/{session_id}/finish
+
+POST /practice/submit
+GET  /practice/records
+
+POST /exam/start
+POST /exam/answer
+POST /exam/finish
+```
+
+## 测试
+
+后端：
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest
+```
+
+前端：
+
+```powershell
+cd frontend
+npm run build
+```
+
+## 下一阶段
+
+v1 计划接入语音能力：
+
+- 语音输入
+- ASR 转写
+- 考官问题朗读
+- 语音维度反馈
+- 完整 Mock Exam 流程
