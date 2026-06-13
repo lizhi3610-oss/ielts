@@ -1,7 +1,13 @@
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.DEV ? "http://localhost:8000" : "");
+
+function apiUrl(path) {
+  return `${API_BASE_URL}${path}`;
+}
 
 export async function getQuestions() {
-  const response = await fetch(`${API_BASE_URL}/questions`);
+  const response = await fetch(apiUrl("/questions"));
   if (!response.ok) {
     throw new Error("Failed to fetch questions");
   }
@@ -9,7 +15,7 @@ export async function getQuestions() {
 }
 
 export async function startPracticeSession(part, topic = null) {
-  const response = await fetch(`${API_BASE_URL}/practice/sessions`, {
+  const response = await fetch(apiUrl("/practice/sessions"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -24,7 +30,7 @@ export async function startPracticeSession(part, topic = null) {
 
 export async function submitPracticeAnswer(sessionId, answer) {
   const response = await fetch(
-    `${API_BASE_URL}/practice/sessions/${sessionId}/answer`,
+    apiUrl(`/practice/sessions/${sessionId}/answer`),
     {
       method: "POST",
       headers: {
@@ -41,7 +47,7 @@ export async function submitPracticeAnswer(sessionId, answer) {
 
 export async function finishPracticeSession(sessionId) {
   const response = await fetch(
-    `${API_BASE_URL}/practice/sessions/${sessionId}/finish`,
+    apiUrl(`/practice/sessions/${sessionId}/finish`),
     {
       method: "POST",
     }
@@ -53,7 +59,7 @@ export async function finishPracticeSession(sessionId) {
 }
 
 export async function startExam(questionId) {
-  const response = await fetch(`${API_BASE_URL}/exam/start`, {
+  const response = await fetch(apiUrl("/exam/start"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -67,7 +73,7 @@ export async function startExam(questionId) {
 }
 
 export async function submitAnswer(sessionId, answer) {
-  const response = await fetch(`${API_BASE_URL}/exam/answer`, {
+  const response = await fetch(apiUrl("/exam/answer"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -81,7 +87,7 @@ export async function submitAnswer(sessionId, answer) {
 }
 
 export async function finishExam(sessionId) {
-  const response = await fetch(`${API_BASE_URL}/exam/finish?session_id=${sessionId}`, {
+  const response = await fetch(apiUrl(`/exam/finish?session_id=${sessionId}`), {
     method: "POST",
   });
   if (!response.ok) {

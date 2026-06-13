@@ -124,6 +124,22 @@ cd frontend
 npm run build
 ```
 
+## 部署
+
+当前版本推荐先用 Render 部署一个 Docker Web Service。仓库里已经包含：
+
+- `Dockerfile`：自动构建前端，并用 FastAPI 托管前端页面和后端接口。
+- `render.yaml`：Render Blueprint 配置。
+
+部署步骤：
+
+1. 确认代码已经推送到 GitHub。
+2. 在 Render 新建 Blueprint，选择本仓库。
+3. 按页面提示填写 `DEEPSEEK_API_KEY`。
+4. 部署完成后访问 Render 提供的公网地址。
+
+当前免费部署使用 `/tmp/ielts.db` 作为 SQLite 数据库，适合演示和试用。服务器重启或重新部署后，历史练习记录可能丢失。正式长期使用时，建议改成 PostgreSQL 或付费持久化磁盘。
+
 ## 下一阶段
 
 v1 计划接入语音能力：
