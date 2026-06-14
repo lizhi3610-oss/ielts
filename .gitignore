@@ -4,6 +4,7 @@ __pycache__/
 .venv/
 .idea/
 .pytest_cache/
+.tmp/
 ielts.db
 
 frontend/node_modules/

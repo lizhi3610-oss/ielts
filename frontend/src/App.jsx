@@ -9,6 +9,7 @@ import {
   submitAnswer,
   submitPracticeAnswer,
 } from "./api";
+import { speechProvider } from "./speech";
 
 const ROUTES = ["/", "/practice", "/mock", "/records"];
 
@@ -49,6 +50,19 @@ function App() {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [speechCapabilities, setSpeechCapabilities] = useState({
+    input: false,
+    output: false,
+  });
+  const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [autoReadExaminer, setAutoReadExaminer] = useState(true);
+  const [handsFreeMode, setHandsFreeMode] = useState(true);
+  const [autoSubmitVoiceAnswer, setAutoSubmitVoiceAnswer] = useState(true);
+  const [showTextPanel, setShowTextPanel] = useState(false);
+  const [showTranscriptPanel, setShowTranscriptPanel] = useState(false);
+  const [lastVoiceAnswer, setLastVoiceAnswer] = useState("");
+  const [speechNotice, setSpeechNotice] = useState(null);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -63,6 +77,10 @@ function App() {
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
+  useEffect(() => {
+    setSpeechCapabilities(speechProvider.getCapabilities());
+  }, []);
+
   const resetSessionState = () => {
     setMode(null);
     setSelectedPart(null);
@@ -73,6 +91,14 @@ function App() {
     setCurrentAnswer("");
     setIsFinished(false);
     setResult(null);
+    setIsListening(false);
+    setIsSpeaking(false);
+    setShowTextPanel(false);
+    setShowTranscriptPanel(false);
+    setLastVoiceAnswer("");
+    setSpeechNotice(null);
+    speechProvider.stopListening();
+    speechProvider.stopSpeaking();
   };
 
   const navigateTo = (nextRoute) => {
@@ -170,8 +196,13 @@ function App() {
     }
   };
 
-  const handleSubmitAnswer = async () => {
-    if (!currentAnswer.trim()) {
+  const handleSubmitAnswer = async (answerOverride = null) => {
+    const answerText =
+      typeof answerOverride === "string"
+        ? answerOverride.trim()
+        : currentAnswer.trim();
+
+    if (!answerText) {
       setError("请输入回答内容");
       return;
     }
@@ -182,12 +213,12 @@ function App() {
     try {
       const userMessage = {
         role: "user",
-        content: currentAnswer,
+        content: answerText,
       };
       setMessages((prev) => [...prev, userMessage]);
 
       if (mode === "practice") {
-        const data = await submitPracticeAnswer(sessionId, currentAnswer);
+        const data = await submitPracticeAnswer(sessionId, answerText);
         setCurrentAnswer("");
         setSelectedTopic(data.topic);
         setMessages((prev) => [
@@ -200,7 +231,7 @@ function App() {
         return;
       }
 
-      const data = await submitAnswer(sessionId, currentAnswer);
+      const data = await submitAnswer(sessionId, answerText);
       setCurrentAnswer("");
 
       if (data.is_finished) {
@@ -270,6 +301,143 @@ function App() {
     }
   };
 
+  const handleVoiceTranscript = (transcript) => {
+    const cleanTranscript = transcript.trim();
+    if (!cleanTranscript) {
+      return;
+    }
+
+    setLastVoiceAnswer(cleanTranscript);
+    setCurrentAnswer((prev) =>
+      speechProvider.appendTranscript(prev, cleanTranscript)
+    );
+
+    if (autoSubmitVoiceAnswer) {
+      setSpeechNotice("已识别回答，正在提交");
+      handleSubmitAnswer(cleanTranscript);
+      return;
+    }
+
+    setSpeechNotice("已识别回答，可手动提交或继续补充");
+    setShowTextPanel(true);
+  };
+
+  const startVoiceListening = () => {
+    if (!speechCapabilities.input) {
+      setSpeechNotice("当前浏览器不支持语音输入，请用 Chrome 或 Edge 打开");
+      return;
+    }
+
+    if (loading) {
+      return;
+    }
+
+    speechProvider.stopSpeaking();
+    setIsSpeaking(false);
+    setSpeechNotice(null);
+    speechProvider.startListening({
+      onStart: () => {
+        setIsListening(true);
+        setSpeechNotice("正在听你回答");
+      },
+      onResult: handleVoiceTranscript,
+      onEnd: () => setIsListening(false),
+      onError: (message) => {
+        setIsListening(false);
+        setSpeechNotice(message);
+      },
+    });
+  };
+
+  const handleToggleListening = () => {
+    if (isListening) {
+      speechProvider.stopListening();
+      setIsListening(false);
+      return;
+    }
+
+    startVoiceListening();
+  };
+
+  const handleSpeakLatestExaminer = () => {
+    if (!speechCapabilities.output) {
+      setSpeechNotice("当前浏览器不支持语音朗读");
+      return;
+    }
+
+    const latestExaminerMessage = [...messages]
+      .reverse()
+      .find((message) => message.role === "examiner");
+
+    if (!latestExaminerMessage) {
+      return;
+    }
+
+    setSpeechNotice(null);
+    speechProvider.speak({
+      text: latestExaminerMessage.content,
+      onStart: () => setIsSpeaking(true),
+      onEnd: () => {
+        setIsSpeaking(false);
+        if (handsFreeMode && speechCapabilities.input) {
+          startVoiceListening();
+        }
+      },
+      onError: (message) => {
+        setIsSpeaking(false);
+        setSpeechNotice(message);
+      },
+    });
+  };
+
+  const handleStopSpeaking = () => {
+    speechProvider.stopSpeaking();
+    setIsSpeaking(false);
+  };
+
+  useEffect(() => {
+    if (
+      flow !== "conversation" ||
+      !autoReadExaminer ||
+      !speechCapabilities.output ||
+      messages.length === 0
+    ) {
+      return undefined;
+    }
+
+    const latestMessage = messages[messages.length - 1];
+    if (latestMessage.role !== "examiner") {
+      return undefined;
+    }
+
+    speechProvider.speak({
+      text: latestMessage.content,
+      onStart: () => setIsSpeaking(true),
+      onEnd: () => {
+        setIsSpeaking(false);
+        if (handsFreeMode && speechCapabilities.input) {
+          startVoiceListening();
+        }
+      },
+      onError: (message) => {
+        setIsSpeaking(false);
+        setSpeechNotice(message);
+      },
+    });
+
+    return () => {
+      speechProvider.stopSpeaking();
+      setIsSpeaking(false);
+    };
+  }, [
+    autoReadExaminer,
+    flow,
+    handsFreeMode,
+    messages,
+    speechCapabilities.input,
+    speechCapabilities.output,
+  ]);
+
   const handleBackToRouteStart = () => {
     resetSessionState();
     setFlow(getDefaultFlow(route));
@@ -283,6 +451,17 @@ function App() {
   ).length;
   const canRequestPracticeFeedback =
     completedPracticeRounds > 0 || currentAnswer.trim().length > 0;
+  const canUseVoice = speechCapabilities.input || speechCapabilities.output;
+  const latestExaminerMessage = [...messages]
+    .reverse()
+    .find((message) => message.role === "examiner");
+  const voiceStateLabel = loading
+    ? "正在处理"
+    : isListening
+    ? "正在听你说"
+    : isSpeaking
+    ? "考官正在说"
+    : "等待回答";
   const topicOptions = Array.from(
     new Map(questions.map((question) => [question.topic, question])).values()
   );
@@ -502,27 +681,159 @@ function App() {
                   : `已完成 ${Math.floor(messages.length / 2)} / 3 轮对话`}
               </p>
 
-              <div className="conversation">
-                {messages.map((message, index) => (
-                  <div key={index} className={`message ${message.role}`}>
-                    <div className="message-role">
-                      {message.role === "examiner" ? "考官" : "你"}
-                    </div>
-                    <div className="message-content">{message.content}</div>
-                  </div>
-                ))}
-              </div>
-
               {!isFinished ? (
                 <>
-                  <div className="input-area">
-                    <textarea
-                      value={currentAnswer}
-                      onChange={(event) => setCurrentAnswer(event.target.value)}
-                      placeholder="请输入你的回答..."
-                      disabled={loading}
-                    />
+                  <div className="voice-panel">
+                    <div
+                      className={`voice-orb ${
+                        isListening ? "listening" : isSpeaking ? "speaking" : ""
+                      }`}
+                      aria-live="polite"
+                    >
+                      <span>{voiceStateLabel}</span>
+                    </div>
+
+                    {latestExaminerMessage && (
+                      <div className="voice-question">
+                        {latestExaminerMessage.content}
+                      </div>
+                    )}
+
+                    <div className="voice-header">
+                      <div>
+                        <strong>语音对话模式</strong>
+                        <span>
+                          {canUseVoice
+                            ? "考官会朗读问题，你可以直接开口回答"
+                            : "当前浏览器暂不支持语音能力"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="voice-controls">
+                      <button
+                        className={
+                          isListening ? "btn-voice active" : "btn-voice"
+                        }
+                        onClick={handleToggleListening}
+                        disabled={loading || !speechCapabilities.input}
+                        type="button"
+                      >
+                        {isListening ? "停止回答" : "开始语音回答"}
+                      </button>
+                      <button
+                        className="btn-secondary"
+                        onClick={handleSpeakLatestExaminer}
+                        disabled={loading || !speechCapabilities.output}
+                        type="button"
+                      >
+                        朗读考官问题
+                      </button>
+                      {isSpeaking && (
+                        <button
+                          className="btn-secondary"
+                          onClick={handleStopSpeaking}
+                          type="button"
+                        >
+                          停止朗读
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="voice-options">
+                      <label className="voice-toggle">
+                        <input
+                          type="checkbox"
+                          checked={autoReadExaminer}
+                          onChange={(event) =>
+                            setAutoReadExaminer(event.target.checked)
+                          }
+                          disabled={!speechCapabilities.output}
+                        />
+                        自动朗读问题
+                      </label>
+                      <label className="voice-toggle">
+                        <input
+                          type="checkbox"
+                          checked={handsFreeMode}
+                          onChange={(event) =>
+                            setHandsFreeMode(event.target.checked)
+                          }
+                          disabled={
+                            !speechCapabilities.input ||
+                            !speechCapabilities.output
+                          }
+                        />
+                        朗读后自动听回答
+                      </label>
+                      <label className="voice-toggle">
+                        <input
+                          type="checkbox"
+                          checked={autoSubmitVoiceAnswer}
+                          onChange={(event) =>
+                            setAutoSubmitVoiceAnswer(event.target.checked)
+                          }
+                          disabled={!speechCapabilities.input}
+                        />
+                        识别后自动提交
+                      </label>
+                    </div>
+
+                    {lastVoiceAnswer && (
+                      <div className="voice-last-answer">
+                        <span>最近回答</span>
+                        {lastVoiceAnswer}
+                      </div>
+                    )}
+
+                    {speechNotice && (
+                      <div className="voice-note">{speechNotice}</div>
+                    )}
                   </div>
+
+                  <button
+                    className="text-link transcript-toggle"
+                    onClick={() => setShowTranscriptPanel((prev) => !prev)}
+                    type="button"
+                  >
+                    {showTranscriptPanel ? "隐藏文字记录" : "查看文字记录"}
+                  </button>
+
+                  {showTranscriptPanel && (
+                    <div className="conversation">
+                      {messages.map((message, index) => (
+                        <div key={index} className={`message ${message.role}`}>
+                          <div className="message-role">
+                            {message.role === "examiner" ? "考官" : "你"}
+                          </div>
+                          <div className="message-content">
+                            {message.content}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <button
+                    className="text-link text-panel-toggle"
+                    onClick={() => setShowTextPanel((prev) => !prev)}
+                    type="button"
+                  >
+                    {showTextPanel ? "隐藏文字输入" : "使用文字输入 / 查看识别文本"}
+                  </button>
+
+                  {showTextPanel && (
+                    <div className="input-area">
+                      <textarea
+                        value={currentAnswer}
+                        onChange={(event) =>
+                          setCurrentAnswer(event.target.value)
+                        }
+                        placeholder="请输入或编辑你的回答..."
+                        disabled={loading}
+                      />
+                    </div>
+                  )}
                   <div className="button-group">
                     <button
                       className="btn-primary"

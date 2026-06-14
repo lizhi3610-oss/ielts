@@ -13,6 +13,8 @@
 5. DeepSeek / OpenAI-compatible LLM 生成追问和评价
 6. LLM 缺失或调用失败时自动 fallback，不让接口崩溃
 7. Mock Exam 旧接口保留可用
+8. 练习中可随时生成点评和推荐答案
+9. 浏览器语音输入和考官问题朗读
 
 ## 技术栈
 
@@ -140,12 +142,22 @@ npm run build
 
 当前免费部署使用 `/tmp/ielts.db` 作为 SQLite 数据库，适合演示和试用。服务器重启或重新部署后，历史练习记录可能丢失。正式长期使用时，建议改成 PostgreSQL 或付费持久化磁盘。
 
+## 语音架构
+
+当前语音 MVP 使用浏览器原生能力：
+
+- 语音输入：Web Speech Recognition
+- 考官朗读：Web Speech Synthesis
+- Provider 入口：`frontend/src/speech/index.js`
+
+后续接入 BosonAI 时，优先替换 speech provider，保留现有对话 UI 和练习流程。
+
 ## 下一阶段
 
 v1 计划接入语音能力：
 
-- 语音输入
-- ASR 转写
-- 考官问题朗读
+- 浏览器语音输入已完成第一版
+- 考官问题朗读已完成第一版
+- 后续可替换为 BosonAI ASR/TTS Provider
 - 语音维度反馈
 - 完整 Mock Exam 流程
