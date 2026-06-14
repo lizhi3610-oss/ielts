@@ -542,6 +542,7 @@ def generate_practice_feedback(
             "role": "system",
             "content": (
                 "You are an IELTS Speaking coach. Evaluate the candidate's practice answers. "
+                "The candidate may stop after any answered round, so focus only on the transcript provided. "
                 "Return valid JSON only."
             ),
         },
@@ -551,6 +552,7 @@ def generate_practice_feedback(
                 f"IELTS Speaking Part: {session.part}\n"
                 f"Topic: {session.topic}\n"
                 f"Transcript:\n{transcript}\n\n"
+                "Give concise coaching feedback and an improved sample answer for this partial practice session. "
                 "Return JSON with these string fields only: "
                 "overall_score, fluency_feedback, lexical_feedback, grammar_feedback, "
                 "suggestions, improved_sample_answer."
@@ -694,7 +696,11 @@ def submit_practice_session_answer(
     return session, next_message
 
 
-def finish_practice_session(db: Session, session_id: int) -> tuple[PracticeSession, dict[str, str]]:
+def finish_practice_session(
+    db: Session,
+    session_id: int,
+    final_answer: str | None = None,
+) -> tuple[PracticeSession, dict[str, str]]:
     """
     结束练习会话并生成评价。
     """
@@ -705,6 +711,21 @@ def finish_practice_session(db: Session, session_id: int) -> tuple[PracticeSessi
     if session.status == "finished" and session.feedback_json:
         return session, json.loads(session.feedback_json)
 
+    clean_final_answer = final_answer.strip() if final_answer else ""
+    if clean_final_answer:
+        current_message = (
+            db.query(PracticeMessage)
+            .filter(
+                PracticeMessage.session_id == session_id,
+                PracticeMessage.candidate_answer.is_(None),
+            )
+            .order_by(PracticeMessage.round_index.desc())
+            .first()
+        )
+        if current_message is not None:
+            current_message.candidate_answer = clean_final_answer
+            db.commit()
+
     answered_messages = (
         db.query(PracticeMessage)
         .filter(
@@ -714,6 +735,9 @@ def finish_practice_session(db: Session, session_id: int) -> tuple[PracticeSessi
         .order_by(PracticeMessage.round_index.asc())
         .all()
     )
+
+    if not answered_messages:
+        raise BusinessError("请先完成至少一轮回答，再获取练习点评")
 
     feedback = generate_practice_feedback(
         session=session,

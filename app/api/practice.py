@@ -6,6 +6,7 @@ from app.core.exceptions import BusinessError
 from app.schemas import (
     AnswerPracticeSessionRequest,
     AnswerPracticeSessionResponse,
+    FinishPracticeSessionRequest,
     FinishPracticeSessionResponse,
     PracticeRecordResponse,
     StartPracticeSessionRequest,
@@ -90,13 +91,18 @@ def answer_practice(
 )
 def finish_practice(
     session_id: int,
+    request: FinishPracticeSessionRequest | None = None,
     db: Session = Depends(get_db),
 ):
     """
     结束练习会话并获取练习评价。
     """
     try:
-        session, feedback = finish_practice_session(db=db, session_id=session_id)
+        session, feedback = finish_practice_session(
+            db=db,
+            session_id=session_id,
+            final_answer=request.answer if request else None,
+        )
     except BusinessError as error:
         raise HTTPException(status_code=400, detail=error.message)
 

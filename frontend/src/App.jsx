@@ -237,6 +237,39 @@ function App() {
     }
   };
 
+  const handleRequestPracticeFeedback = async () => {
+    const finalAnswer = currentAnswer.trim();
+    const hasAnsweredRound = messages.some((message) => message.role === "user");
+
+    if (!hasAnsweredRound && !finalAnswer) {
+      setError("请先完成至少一轮回答，再生成点评和推荐答案");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const data = await finishPracticeSession(sessionId, finalAnswer || null);
+      if (finalAnswer) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "user",
+            content: finalAnswer,
+          },
+        ]);
+        setCurrentAnswer("");
+      }
+      setResult(data);
+      setFlow("result");
+    } catch (err) {
+      setError("生成点评和推荐答案失败");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleBackToRouteStart = () => {
     resetSessionState();
     setFlow(getDefaultFlow(route));
@@ -245,6 +278,11 @@ function App() {
 
   const pageTitle =
     mode === "practice" ? "练习对话进行中" : "模拟考试进行中";
+  const completedPracticeRounds = messages.filter(
+    (message) => message.role === "user"
+  ).length;
+  const canRequestPracticeFeedback =
+    completedPracticeRounds > 0 || currentAnswer.trim().length > 0;
   const topicOptions = Array.from(
     new Map(questions.map((question) => [question.topic, question])).values()
   );
@@ -460,7 +498,7 @@ function App() {
               <h1>{pageTitle}</h1>
               <p className="round-info">
                 {mode === "practice"
-                  ? `已完成 ${messages.filter((message) => message.role === "user").length} 轮回答`
+                  ? `已完成 ${completedPracticeRounds} 轮回答`
                   : `已完成 ${Math.floor(messages.length / 2)} / 3 轮对话`}
               </p>
 
@@ -496,12 +534,12 @@ function App() {
                     </button>
                     {mode === "practice" && (
                       <button
-                        className="btn-secondary"
-                        onClick={handleFinishSession}
-                        disabled={loading}
+                        className="btn-review"
+                        onClick={handleRequestPracticeFeedback}
+                        disabled={loading || !canRequestPracticeFeedback}
                         type="button"
                       >
-                        结束练习
+                        {loading ? "生成中..." : "生成点评和推荐答案"}
                       </button>
                     )}
                   </div>
@@ -535,33 +573,33 @@ function App() {
                 <>
                   <div className="score-grid practice-score">
                     <div className="score-card">
-                      <h2>Overall Score</h2>
+                      <h2>综合分数</h2>
                       <div className="score">{result.overall_score}</div>
                     </div>
                   </div>
 
                   <div className="feedback-section">
-                    <h2>Fluency Feedback</h2>
+                    <h2>流利度点评</h2>
                     <p>{result.fluency_feedback}</p>
                   </div>
 
                   <div className="feedback-section">
-                    <h2>Lexical Feedback</h2>
+                    <h2>词汇点评</h2>
                     <p>{result.lexical_feedback}</p>
                   </div>
 
                   <div className="feedback-section">
-                    <h2>Grammar Feedback</h2>
+                    <h2>语法点评</h2>
                     <p>{result.grammar_feedback}</p>
                   </div>
 
                   <div className="feedback-section">
-                    <h2>Suggestions</h2>
+                    <h2>改进建议</h2>
                     <p>{result.suggestions}</p>
                   </div>
 
                   <div className="feedback-section">
-                    <h2>Improved Sample Answer</h2>
+                    <h2>推荐答案</h2>
                     <p>{result.improved_sample_answer}</p>
                   </div>
                 </>

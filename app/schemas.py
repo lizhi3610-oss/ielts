@@ -67,6 +67,10 @@ class AnswerPracticeSessionResponse(BaseModel):
     next_question: str
 
 
+class FinishPracticeSessionRequest(BaseModel):
+    answer: str | None = Field(None, min_length=1, description="结束前的当前回答")
+
+
 class FinishPracticeSessionResponse(BaseModel):
     session_id: int
     part: int

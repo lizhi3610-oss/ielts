@@ -168,7 +168,8 @@ h1 {
 }
 
 .btn-primary,
-.btn-secondary {
+.btn-secondary,
+.btn-review {
   border-radius: 8px;
   padding: 12px 22px;
   font-weight: 700;
@@ -200,6 +201,25 @@ h1 {
 .btn-secondary:hover {
   border-color: #2563eb;
   color: #1d4ed8;
+}
+
+.btn-review {
+  align-self: flex-start;
+  border: 1px solid #0f766e;
+  background: #0f766e;
+  color: #ffffff;
+}
+
+.btn-review:hover {
+  border-color: #115e59;
+  background: #115e59;
+}
+
+.btn-review:disabled {
+  cursor: not-allowed;
+  border-color: #d1d5db;
+  background: #e5e7eb;
+  color: #6b7280;
 }
 
 .question-list {
@@ -355,7 +375,8 @@ h1 {
   }
 
   .btn-primary,
-  .btn-secondary {
+  .btn-secondary,
+  .btn-review {
     width: 100%;
   }
 }

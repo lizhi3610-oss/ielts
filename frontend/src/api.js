@@ -45,12 +45,21 @@ export async function submitPracticeAnswer(sessionId, answer) {
   return response.json();
 }
 
-export async function finishPracticeSession(sessionId) {
+export async function finishPracticeSession(sessionId, finalAnswer = null) {
+  const options = {
+    method: "POST",
+  };
+
+  if (finalAnswer?.trim()) {
+    options.headers = {
+      "Content-Type": "application/json",
+    };
+    options.body = JSON.stringify({ answer: finalAnswer.trim() });
+  }
+
   const response = await fetch(
     apiUrl(`/practice/sessions/${sessionId}/finish`),
-    {
-      method: "POST",
-    }
+    options
   );
   if (!response.ok) {
     throw new Error("Failed to finish practice session");
