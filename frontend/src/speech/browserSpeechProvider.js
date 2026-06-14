@@ -1,4 +1,10 @@
 const DEFAULT_LANGUAGE = "en-US";
+const RECOGNITION_ERROR_MESSAGES = {
+  "audio-capture": "没有检测到可用麦克风",
+  "not-allowed": "麦克风权限被拒绝，请在浏览器里允许麦克风",
+  "no-speech": "没有识别到语音，请再说一次",
+  network: "语音识别网络连接失败",
+};
 
 function getSpeechRecognitionConstructor() {
   if (typeof window === "undefined") {
@@ -72,7 +78,11 @@ export function createBrowserSpeechProvider() {
     };
 
     recognition.onerror = (event) => {
-      onError?.(event.error || "语音输入失败");
+      onError?.(
+        RECOGNITION_ERROR_MESSAGES[event.error] ||
+          event.error ||
+          "语音输入失败"
+      );
     };
 
     recognition.onend = () => {
@@ -117,7 +127,11 @@ export function createBrowserSpeechProvider() {
     utterance.onend = () => {
       onEnd?.();
     };
-    utterance.onerror = () => {
+    utterance.onerror = (event) => {
+      if (event.error === "interrupted" || event.error === "canceled") {
+        return;
+      }
+
       onError?.("语音朗读失败");
     };
 
