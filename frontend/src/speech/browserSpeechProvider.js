@@ -9,6 +9,10 @@ const RECOGNITION_ERROR_MESSAGES = {
   network: "语音识别网络连接失败",
   "service-not-allowed": "当前浏览器的语音识别服务不可用，请换 Chrome 或 Edge 再试",
 };
+const WECHAT_BROWSER_NOTICE =
+  "微信内置浏览器不支持稳定语音识别，请点右上角在浏览器打开";
+const QUARK_BROWSER_NOTICE =
+  "夸克浏览器暂不支持本页语音识别，请复制链接到 Chrome 或 Safari 打开";
 
 function getSpeechRecognitionConstructor() {
   if (typeof window === "undefined") {
@@ -40,6 +44,34 @@ function getNoResultTimeoutMs() {
     : DESKTOP_NO_RESULT_TIMEOUT_MS;
 }
 
+function getBrowserEnvironment() {
+  if (typeof navigator === "undefined") {
+    return {
+      isQuark: false,
+      isWeChat: false,
+    };
+  }
+
+  const userAgent = navigator.userAgent || "";
+  return {
+    isQuark: /Quark|UCBrowser|UCWEB/i.test(userAgent),
+    isWeChat: /MicroMessenger/i.test(userAgent),
+  };
+}
+
+function getBrowserNotice() {
+  const browser = getBrowserEnvironment();
+  if (browser.isWeChat) {
+    return WECHAT_BROWSER_NOTICE;
+  }
+
+  if (browser.isQuark) {
+    return QUARK_BROWSER_NOTICE;
+  }
+
+  return null;
+}
+
 function appendTranscript(currentText, transcript) {
   const cleanTranscript = transcript.trim();
   if (!cleanTranscript) {
@@ -55,11 +87,51 @@ function appendTranscript(currentText, transcript) {
 export function createBrowserSpeechProvider() {
   let recognition = null;
   let stopActiveRecognition = null;
+  let hasPreparedOutput = false;
 
   const getCapabilities = () => ({
-    input: Boolean(getSpeechRecognitionConstructor()),
+    browserNotice: getBrowserNotice(),
+    input:
+      Boolean(getSpeechRecognitionConstructor()) && Boolean(!getBrowserNotice()),
     output: Boolean(getSpeechSynthesis()),
   });
+
+  const prepareOutput = ({ language = DEFAULT_LANGUAGE } = {}) => {
+    const speechSynthesis = getSpeechSynthesis();
+    if (!speechSynthesis) {
+      return false;
+    }
+
+    if (hasPreparedOutput) {
+      speechSynthesis.resume?.();
+      return true;
+    }
+
+    try {
+      const utterance = new SpeechSynthesisUtterance(".");
+      utterance.lang = language;
+      utterance.volume = 0;
+      utterance.rate = 1;
+      utterance.pitch = 1;
+      utterance.onend = () => {
+        hasPreparedOutput = true;
+      };
+      utterance.onerror = () => {
+        hasPreparedOutput = false;
+      };
+
+      speechSynthesis.resume?.();
+      speechSynthesis.speak(utterance);
+      window.setTimeout(() => speechSynthesis.resume?.(), 0);
+
+      // Some mobile browsers do not fire callbacks for muted utterances.
+      hasPreparedOutput = true;
+      return true;
+    } catch (err) {
+      hasPreparedOutput = false;
+      return false;
+    }
+  };
 
   const startListening = ({
     language = DEFAULT_LANGUAGE,
@@ -69,6 +141,12 @@ export function createBrowserSpeechProvider() {
     onEnd,
     onError,
   }) => {
+    const browserNotice = getBrowserNotice();
+    if (browserNotice) {
+      onError?.(browserNotice);
+      return;
+    }
+
     const SpeechRecognition = getSpeechRecognitionConstructor();
     if (!SpeechRecognition) {
       onError?.("当前浏览器不支持语音输入");
@@ -250,27 +328,53 @@ export function createBrowserSpeechProvider() {
     }
 
     speechSynthesis.cancel();
+    speechSynthesis.resume?.();
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = language;
     utterance.rate = 0.92;
     utterance.pitch = 1;
+    let hasStarted = false;
+    let startTimer = null;
+
+    const clearStartTimer = () => {
+      if (startTimer) {
+        window.clearTimeout(startTimer);
+        startTimer = null;
+      }
+    };
 
     utterance.onstart = () => {
+      hasStarted = true;
+      clearStartTimer();
       onStart?.();
     };
     utterance.onend = () => {
+      clearStartTimer();
       onEnd?.();
     };
     utterance.onerror = (event) => {
+      clearStartTimer();
       if (event.error === "interrupted" || event.error === "canceled") {
         return;
       }
 
-      onError?.("语音朗读失败");
+      onError?.("语音朗读失败，请点一次朗读考官问题");
     };
 
     speechSynthesis.speak(utterance);
+    window.setTimeout(() => speechSynthesis.resume?.(), 0);
+    window.setTimeout(() => speechSynthesis.resume?.(), 250);
+
+    startTimer = window.setTimeout(() => {
+      if (
+        !hasStarted &&
+        !speechSynthesis.speaking &&
+        !speechSynthesis.pending
+      ) {
+        onError?.("自动朗读被浏览器拦截，请点一次朗读考官问题");
+      }
+    }, 2500);
   };
 
   const stopSpeaking = () => {
@@ -283,6 +387,7 @@ export function createBrowserSpeechProvider() {
   return {
     appendTranscript,
     getCapabilities,
+    prepareOutput,
     speak,
     startListening,
     stopListening,

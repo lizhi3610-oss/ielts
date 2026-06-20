@@ -51,6 +51,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [speechCapabilities, setSpeechCapabilities] = useState({
+    browserNotice: null,
     input: false,
     output: false,
   });
@@ -78,6 +79,11 @@ function App() {
   useEffect(() => {
     setSpeechCapabilities(speechProvider.getCapabilities());
   }, []);
+
+  const prepareVoiceOutput = () => {
+    speechProvider.prepareOutput();
+    setSpeechCapabilities(speechProvider.getCapabilities());
+  };
 
   const resetSessionState = () => {
     setMode(null);
@@ -128,6 +134,7 @@ function App() {
   };
 
   const handleSelectPracticePart = (part) => {
+    prepareVoiceOutput();
     setMode("practice");
     setSelectedPart(part);
     setSelectedTopic(null);
@@ -135,6 +142,7 @@ function App() {
   };
 
   const handleStartMock = () => {
+    prepareVoiceOutput();
     setMode("mock");
     setSelectedPart(null);
     setSelectedTopic(null);
@@ -147,6 +155,7 @@ function App() {
       return;
     }
 
+    prepareVoiceOutput();
     setLoading(true);
     setError(null);
 
@@ -172,6 +181,7 @@ function App() {
   };
 
   const handleSelectMockQuestion = async (questionId) => {
+    prepareVoiceOutput();
     setLoading(true);
     setError(null);
 
@@ -206,6 +216,7 @@ function App() {
       return;
     }
 
+    prepareVoiceOutput();
     setLoading(true);
     setError(null);
 
@@ -316,6 +327,11 @@ function App() {
   };
 
   const startVoiceListening = () => {
+    if (speechCapabilities.browserNotice) {
+      setSpeechNotice(speechCapabilities.browserNotice);
+      return;
+    }
+
     if (!speechCapabilities.input) {
       setSpeechNotice("当前浏览器不支持语音输入，请用 Chrome 或 Edge 打开");
       return;
@@ -379,6 +395,7 @@ function App() {
     }
 
     setSpeechNotice(null);
+    prepareVoiceOutput();
     speechProvider.speak({
       text: latestExaminerMessage.content,
       onStart: () => setIsSpeaking(true),
@@ -393,6 +410,15 @@ function App() {
   const handleStopSpeaking = () => {
     speechProvider.stopSpeaking();
     setIsSpeaking(false);
+  };
+
+  const handleCopyCurrentUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setSpeechNotice("链接已复制，请到 Chrome 或 Safari 打开");
+    } catch (err) {
+      setSpeechNotice("请复制地址栏链接，到 Chrome 或 Safari 打开");
+    }
   };
 
   useEffect(() => {
@@ -443,6 +469,7 @@ function App() {
   const canRequestPracticeFeedback =
     completedPracticeRounds > 0 || currentAnswer.trim().length > 0;
   const canUseVoice = speechCapabilities.input || speechCapabilities.output;
+  const browserNotice = speechCapabilities.browserNotice;
   const latestExaminerMessage = [...messages]
     .reverse()
     .find((message) => message.role === "examiner");
@@ -492,6 +519,15 @@ function App() {
         </nav>
 
         {error && <div className="error">{error}</div>}
+
+        {browserNotice && (
+          <div className="browser-warning">
+            <span>{browserNotice}</span>
+            <button type="button" onClick={handleCopyCurrentUrl}>
+              复制链接
+            </button>
+          </div>
+        )}
 
         {route === "/" && (
           <section className="home">
@@ -694,7 +730,9 @@ function App() {
                       <div>
                         <strong>语音对话模式</strong>
                         <span>
-                          {canUseVoice
+                          {browserNotice
+                            ? browserNotice
+                            : canUseVoice
                             ? "新问题会自动朗读。听完后，点击开始语音回答"
                             : "当前浏览器暂不支持语音能力"}
                         </span>
@@ -707,7 +745,11 @@ function App() {
                           isListening ? "btn-voice active" : "btn-voice"
                         }
                         onClick={handleToggleListening}
-                        disabled={loading || !speechCapabilities.input}
+                        disabled={
+                          loading ||
+                          Boolean(browserNotice) ||
+                          !speechCapabilities.input
+                        }
                         type="button"
                       >
                         {isListening ? "停止回答" : "开始语音回答"}

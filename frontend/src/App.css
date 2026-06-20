@@ -506,6 +506,30 @@ h1 {
   padding: 12px 14px;
 }
 
+.browser-warning {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #9a3412;
+  line-height: 1.5;
+  margin-bottom: 18px;
+  padding: 12px 14px;
+}
+
+.browser-warning button {
+  flex: 0 0 auto;
+  border: 1px solid #fb923c;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #9a3412;
+  font-weight: 700;
+  padding: 8px 12px;
+}
+
 @media (max-width: 720px) {
   .app {
     padding: 16px;
@@ -537,6 +561,11 @@ h1 {
   }
 
   .voice-controls {
+    flex-direction: column;
+  }
+
+  .browser-warning {
+    align-items: stretch;
     flex-direction: column;
   }
 }
