@@ -59,6 +59,7 @@ function App() {
   const [showTextPanel, setShowTextPanel] = useState(false);
   const [showTranscriptPanel, setShowTranscriptPanel] = useState(false);
   const [lastVoiceAnswer, setLastVoiceAnswer] = useState("");
+  const [voiceDraft, setVoiceDraft] = useState("");
   const [speechNotice, setSpeechNotice] = useState(null);
 
   useEffect(() => {
@@ -93,6 +94,7 @@ function App() {
     setShowTextPanel(false);
     setShowTranscriptPanel(false);
     setLastVoiceAnswer("");
+    setVoiceDraft("");
     setSpeechNotice(null);
     speechProvider.stopListening();
     speechProvider.stopSpeaking();
@@ -305,6 +307,7 @@ function App() {
     }
 
     setLastVoiceAnswer(cleanTranscript);
+    setVoiceDraft("");
     setCurrentAnswer((prev) =>
       speechProvider.appendTranscript(prev, cleanTranscript)
     );
@@ -324,16 +327,28 @@ function App() {
 
     speechProvider.stopSpeaking();
     setIsSpeaking(false);
+    setVoiceDraft("");
     setSpeechNotice(null);
     speechProvider.startListening({
       onStart: () => {
         setIsListening(true);
         setSpeechNotice("正在听你回答");
       },
+      onPartialResult: (transcript) => {
+        const cleanTranscript = transcript.trim();
+        setVoiceDraft(cleanTranscript);
+        if (cleanTranscript) {
+          setSpeechNotice("正在识别，说完后点击停止回答或等待自动结束");
+        }
+      },
       onResult: handleVoiceTranscript,
-      onEnd: () => setIsListening(false),
+      onEnd: () => {
+        setIsListening(false);
+        setVoiceDraft("");
+      },
       onError: (message) => {
         setIsListening(false);
+        setVoiceDraft("");
         setSpeechNotice(message);
       },
     });
@@ -723,6 +738,13 @@ function App() {
                       </div>
                     )}
 
+                    {voiceDraft && (
+                      <div className="voice-draft">
+                        <span>正在识别</span>
+                        {voiceDraft}
+                      </div>
+                    )}
+
                     {speechNotice && (
                       <div className="voice-note">{speechNotice}</div>
                     )}
@@ -775,7 +797,7 @@ function App() {
                     <button
                       className="btn-primary"
                       onClick={handleSubmitAnswer}
-                      disabled={loading}
+                      disabled={loading || isListening}
                       type="button"
                     >
                       {loading ? "提交中..." : "提交回答"}
@@ -784,7 +806,9 @@ function App() {
                       <button
                         className="btn-review"
                         onClick={handleRequestPracticeFeedback}
-                        disabled={loading || !canRequestPracticeFeedback}
+                        disabled={
+                          loading || isListening || !canRequestPracticeFeedback
+                        }
                         type="button"
                       >
                         {loading ? "生成中..." : "生成点评和推荐答案"}

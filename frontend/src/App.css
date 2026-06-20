@@ -402,6 +402,25 @@ h1 {
   text-transform: uppercase;
 }
 
+.voice-draft {
+  margin-top: 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e40af;
+  line-height: 1.6;
+  padding: 12px 14px;
+}
+
+.voice-draft span {
+  display: block;
+  color: #1d4ed8;
+  font-size: 0.82rem;
+  font-weight: 800;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
 .voice-note {
   margin-top: 12px;
   text-align: center;

@@ -150,6 +150,7 @@ npm run build
 - 考官朗读：Web Speech Synthesis
 - Provider 入口：`frontend/src/speech/index.js`
 - 交互流程：新问题自动朗读，用户手动开始语音回答，识别结果进入待提交文本，确认后手动提交
+- 移动端：已接入临时识别结果和无声超时提示。Android Chrome/Edge 通常可用；如果 iPhone/Safari 不暴露语音识别能力，需要后续接入服务器端 ASR Provider。
 
 后续接入 BosonAI 时，优先替换 speech provider，保留现有对话 UI 和练习流程。
 
