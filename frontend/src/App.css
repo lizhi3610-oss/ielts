@@ -376,33 +376,11 @@ h1 {
   line-height: 1.5;
 }
 
-.voice-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: #374151;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.voice-toggle input {
-  width: 16px;
-  height: 16px;
-}
-
 .voice-controls {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   gap: 12px;
-}
-
-.voice-options {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 12px 18px;
-  margin-top: 14px;
 }
 
 .voice-last-answer {
@@ -539,7 +517,6 @@ h1 {
     flex-direction: column;
   }
 
-  .voice-options,
   .voice-controls {
     flex-direction: column;
   }

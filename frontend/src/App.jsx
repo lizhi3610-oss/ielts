@@ -56,9 +56,6 @@ function App() {
   });
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [autoReadExaminer, setAutoReadExaminer] = useState(true);
-  const [handsFreeMode, setHandsFreeMode] = useState(true);
-  const [autoSubmitVoiceAnswer, setAutoSubmitVoiceAnswer] = useState(true);
   const [showTextPanel, setShowTextPanel] = useState(false);
   const [showTranscriptPanel, setShowTranscriptPanel] = useState(false);
   const [lastVoiceAnswer, setLastVoiceAnswer] = useState("");
@@ -311,14 +308,7 @@ function App() {
     setCurrentAnswer((prev) =>
       speechProvider.appendTranscript(prev, cleanTranscript)
     );
-
-    if (autoSubmitVoiceAnswer) {
-      setSpeechNotice("已识别回答，正在提交");
-      handleSubmitAnswer(cleanTranscript);
-      return;
-    }
-
-    setSpeechNotice("已识别回答，可手动提交或继续补充");
+    setSpeechNotice("已识别回答，请确认后提交");
     setShowTextPanel(true);
   };
 
@@ -377,12 +367,7 @@ function App() {
     speechProvider.speak({
       text: latestExaminerMessage.content,
       onStart: () => setIsSpeaking(true),
-      onEnd: () => {
-        setIsSpeaking(false);
-        if (handsFreeMode && speechCapabilities.input) {
-          startVoiceListening();
-        }
-      },
+      onEnd: () => setIsSpeaking(false),
       onError: (message) => {
         setIsSpeaking(false);
         setSpeechNotice(message);
@@ -398,7 +383,6 @@ function App() {
   useEffect(() => {
     if (
       flow !== "conversation" ||
-      !autoReadExaminer ||
       !speechCapabilities.output ||
       messages.length === 0
     ) {
@@ -413,12 +397,7 @@ function App() {
     speechProvider.speak({
       text: latestMessage.content,
       onStart: () => setIsSpeaking(true),
-      onEnd: () => {
-        setIsSpeaking(false);
-        if (handsFreeMode && speechCapabilities.input) {
-          startVoiceListening();
-        }
-      },
+      onEnd: () => setIsSpeaking(false),
       onError: (message) => {
         setIsSpeaking(false);
         setSpeechNotice(message);
@@ -430,11 +409,8 @@ function App() {
       setIsSpeaking(false);
     };
   }, [
-    autoReadExaminer,
     flow,
-    handsFreeMode,
     messages,
-    speechCapabilities.input,
     speechCapabilities.output,
   ]);
 
@@ -704,7 +680,7 @@ function App() {
                         <strong>语音对话模式</strong>
                         <span>
                           {canUseVoice
-                            ? "考官会朗读问题，你可以直接开口回答"
+                            ? "新问题会自动朗读。听完后，点击开始语音回答"
                             : "当前浏览器暂不支持语音能力"}
                         </span>
                       </div>
@@ -738,45 +714,6 @@ function App() {
                           停止朗读
                         </button>
                       )}
-                    </div>
-
-                    <div className="voice-options">
-                      <label className="voice-toggle">
-                        <input
-                          type="checkbox"
-                          checked={autoReadExaminer}
-                          onChange={(event) =>
-                            setAutoReadExaminer(event.target.checked)
-                          }
-                          disabled={!speechCapabilities.output}
-                        />
-                        自动朗读问题
-                      </label>
-                      <label className="voice-toggle">
-                        <input
-                          type="checkbox"
-                          checked={handsFreeMode}
-                          onChange={(event) =>
-                            setHandsFreeMode(event.target.checked)
-                          }
-                          disabled={
-                            !speechCapabilities.input ||
-                            !speechCapabilities.output
-                          }
-                        />
-                        朗读后自动听回答
-                      </label>
-                      <label className="voice-toggle">
-                        <input
-                          type="checkbox"
-                          checked={autoSubmitVoiceAnswer}
-                          onChange={(event) =>
-                            setAutoSubmitVoiceAnswer(event.target.checked)
-                          }
-                          disabled={!speechCapabilities.input}
-                        />
-                        识别后自动提交
-                      </label>
                     </div>
 
                     {lastVoiceAnswer && (
