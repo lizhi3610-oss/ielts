@@ -30,6 +30,38 @@ function getSpeechSynthesis() {
   return window.speechSynthesis || null;
 }
 
+function getPreferredVoice(speechSynthesis, language) {
+  const voices = speechSynthesis.getVoices?.() || [];
+  const normalizedLanguage = language.toLowerCase();
+  const languagePrefix = normalizedLanguage.split("-")[0];
+  const exactMatches = voices.filter(
+    (voice) => voice.lang?.toLowerCase() === normalizedLanguage
+  );
+
+  return (
+    exactMatches.find((voice) => voice.default && voice.localService) ||
+    exactMatches.find((voice) => voice.localService) ||
+    exactMatches[0] ||
+    voices.find(
+      (voice) =>
+        voice.localService &&
+        voice.lang?.toLowerCase().startsWith(`${languagePrefix}-`)
+    ) ||
+    voices.find((voice) =>
+      voice.lang?.toLowerCase().startsWith(`${languagePrefix}-`)
+    ) ||
+    null
+  );
+}
+
+function configureUtterance(utterance, speechSynthesis, language) {
+  utterance.lang = language;
+  const voice = getPreferredVoice(speechSynthesis, language);
+  if (voice) {
+    utterance.voice = voice;
+  }
+}
+
 function isMobileBrowser() {
   if (typeof navigator === "undefined") {
     return false;
@@ -88,6 +120,10 @@ export function createBrowserSpeechProvider() {
   let recognition = null;
   let stopActiveRecognition = null;
   let hasPreparedOutput = false;
+  let preparationUtterance = null;
+  let activeUtterance = null;
+  let speechRequestId = 0;
+  let pendingSpeechTimer = null;
 
   const getCapabilities = () => ({
     browserNotice: getBrowserNotice(),
@@ -103,26 +139,30 @@ export function createBrowserSpeechProvider() {
     }
 
     if (hasPreparedOutput) {
-      speechSynthesis.resume?.();
       return true;
     }
 
     try {
       const utterance = new SpeechSynthesisUtterance(".");
-      utterance.lang = language;
+      configureUtterance(utterance, speechSynthesis, language);
       utterance.volume = 0;
       utterance.rate = 1;
       utterance.pitch = 1;
       utterance.onend = () => {
+        if (preparationUtterance === utterance) {
+          preparationUtterance = null;
+        }
         hasPreparedOutput = true;
       };
       utterance.onerror = () => {
+        if (preparationUtterance === utterance) {
+          preparationUtterance = null;
+        }
         hasPreparedOutput = false;
       };
 
-      speechSynthesis.resume?.();
+      preparationUtterance = utterance;
       speechSynthesis.speak(utterance);
-      window.setTimeout(() => speechSynthesis.resume?.(), 0);
 
       // Some mobile browsers do not fire callbacks for muted utterances.
       hasPreparedOutput = true;
@@ -327,13 +367,34 @@ export function createBrowserSpeechProvider() {
       return;
     }
 
-    speechSynthesis.cancel();
-    speechSynthesis.resume?.();
+    if (
+      activeUtterance?.text === cleanText &&
+      (speechSynthesis.speaking || speechSynthesis.pending)
+    ) {
+      return;
+    }
+
+    const shouldReplaceActiveSpeech = Boolean(
+      activeUtterance &&
+        (speechSynthesis.speaking || speechSynthesis.pending)
+    );
+    const requestId = ++speechRequestId;
+
+    if (pendingSpeechTimer) {
+      window.clearTimeout(pendingSpeechTimer);
+      pendingSpeechTimer = null;
+    }
+
+    if (shouldReplaceActiveSpeech) {
+      speechSynthesis.cancel();
+      activeUtterance = null;
+    }
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.lang = language;
+    configureUtterance(utterance, speechSynthesis, language);
     utterance.rate = 0.92;
     utterance.pitch = 1;
+    activeUtterance = utterance;
     let hasStarted = false;
     let startTimer = null;
 
@@ -351,10 +412,16 @@ export function createBrowserSpeechProvider() {
     };
     utterance.onend = () => {
       clearStartTimer();
+      if (activeUtterance === utterance) {
+        activeUtterance = null;
+      }
       onEnd?.();
     };
     utterance.onerror = (event) => {
       clearStartTimer();
+      if (activeUtterance === utterance) {
+        activeUtterance = null;
+      }
       if (event.error === "interrupted" || event.error === "canceled") {
         return;
       }
@@ -362,9 +429,17 @@ export function createBrowserSpeechProvider() {
       onError?.("语音朗读失败，请点一次朗读考官问题");
     };
 
-    speechSynthesis.speak(utterance);
-    window.setTimeout(() => speechSynthesis.resume?.(), 0);
-    window.setTimeout(() => speechSynthesis.resume?.(), 250);
+    const startSpeech = () => {
+      pendingSpeechTimer = null;
+      if (requestId !== speechRequestId || activeUtterance !== utterance) {
+        return;
+      }
+
+      if (speechSynthesis.paused) {
+        speechSynthesis.resume();
+      }
+      speechSynthesis.speak(utterance);
+    };
 
     startTimer = window.setTimeout(() => {
       if (
@@ -375,12 +450,33 @@ export function createBrowserSpeechProvider() {
         onError?.("自动朗读被浏览器拦截，请点一次朗读考官问题");
       }
     }, 2500);
+
+    if (shouldReplaceActiveSpeech) {
+      pendingSpeechTimer = window.setTimeout(startSpeech, 60);
+    } else {
+      startSpeech();
+    }
   };
 
   const stopSpeaking = () => {
     const speechSynthesis = getSpeechSynthesis();
     if (speechSynthesis) {
-      speechSynthesis.cancel();
+      speechRequestId += 1;
+      if (pendingSpeechTimer) {
+        window.clearTimeout(pendingSpeechTimer);
+        pendingSpeechTimer = null;
+      }
+
+      if (
+        activeUtterance ||
+        preparationUtterance ||
+        speechSynthesis.speaking ||
+        speechSynthesis.pending
+      ) {
+        speechSynthesis.cancel();
+      }
+      activeUtterance = null;
+      preparationUtterance = null;
     }
   };
 

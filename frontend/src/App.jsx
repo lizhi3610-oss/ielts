@@ -82,7 +82,6 @@ function App() {
 
   const prepareVoiceOutput = () => {
     speechProvider.prepareOutput();
-    setSpeechCapabilities(speechProvider.getCapabilities());
   };
 
   const resetSessionState = () => {
@@ -134,7 +133,6 @@ function App() {
   };
 
   const handleSelectPracticePart = (part) => {
-    prepareVoiceOutput();
     setMode("practice");
     setSelectedPart(part);
     setSelectedTopic(null);
@@ -142,7 +140,6 @@ function App() {
   };
 
   const handleStartMock = () => {
-    prepareVoiceOutput();
     setMode("mock");
     setSelectedPart(null);
     setSelectedTopic(null);
@@ -216,7 +213,6 @@ function App() {
       return;
     }
 
-    prepareVoiceOutput();
     setLoading(true);
     setError(null);
 
@@ -395,7 +391,6 @@ function App() {
     }
 
     setSpeechNotice(null);
-    prepareVoiceOutput();
     speechProvider.speak({
       text: latestExaminerMessage.content,
       onStart: () => setIsSpeaking(true),
